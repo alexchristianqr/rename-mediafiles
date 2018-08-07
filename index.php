@@ -1,14 +1,17 @@
 <?php
+/**
+ * Created by: Alex Christian
+ * Github: https://github.com/acqrdeveloper/renameFilesInDirectories
+ */
 
 define('BASE_PATH', 'grabaciones/');
+
 //Inicializar funcion
 explorerDirectorys();
 
 //Explorar directorios existentes
 function explorerDirectorys()
 {
-//    fileLog(BASE_PATH.'log.txt','alex quispe');
-//    exit();
     $subDirectorys = scandir(BASE_PATH);
     foreach($subDirectorys as $subdirectory){
         if(!in_array($subdirectory, ['.', '..'])){
@@ -54,8 +57,8 @@ function getConnection()
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, //make the default fetch be an associative array
     ];
     try{
-//        return new PDO('mysql:host=192.167.99.207;port=3306;dbname=calidda', 'aquispe', 'aquispe', $options);
-        return new PDO('mysql:host=10.151.112.16;port=3306;dbname=asteriskcdrdb', 'sistemas', 'sistemas', $options);
+        //Copiar conexion del .env
+        return new PDO('','','',$options);
     }catch(PDOException $e){
         return $e->getMessage();
     }
@@ -161,7 +164,7 @@ function enterDirectory($request = [], $temp = null, $finalRows, $finalRow)
         if($finalRows - 1 == $finalRow){
             //Mover los archivos perdidos
             foreach($filesInDirectory as $kk => $vv){
-                if(!in_array($vv, ['.', '..', 'por_verificar'])){
+                if(!in_array($vv, ['.', '..', 'por_verificar','log.txt'])){
                     $arrayFilesTemp = explode('-', $vv);
                     if(count($arrayFilesTemp) <= 2){
                         if(file_exists($fullPath . '/' . $vv)){
@@ -191,6 +194,7 @@ function renameFile($file, $renameFile)
     rename($file, $renameFile);
 }
 
+//Validar y crear un archivo log por carpeta de trabajo
 function createLog($path, $text)
 {
     if(file_exists($path)){
@@ -201,9 +205,10 @@ function createLog($path, $text)
     }
 }
 
+//Realizar el proceso de escritura en el archivo log
 function processLog($path, $text)
 {
     $data = file_get_contents($path);
     $data .= $text;
-    file_put_contents($path, $data);
+    file_put_contents($path, $data . "\r\n");
 }
