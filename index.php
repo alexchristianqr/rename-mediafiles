@@ -43,6 +43,9 @@ function validateDir($params)
         case 'entrantes':
             cicloCdr($params);
             break;
+        case 'salientes':
+            cicloCdr($params);
+            break;
         default:
             exit();
     }
@@ -58,7 +61,8 @@ function getConnection()
     ];
     try{
         //Copiar conexion del .env
-        return new PDO('','','',$options);
+        //return new PDO('','','',$options);
+        return new PDO('mysql:host=192.167.99.207;port=3306;dbname=asteriskcdrdb', 'aquispe', 'aquispe', $options);
     }catch(PDOException $e){
         return $e->getMessage();
     }
@@ -70,8 +74,8 @@ function getCdr($params)
     try{
         $pdo = getConnection();
         //Query Auna
-        if($params['type'] == 'entrantes'){
-            $sql = "SELECT uniqueid, calldate, lastapp, disposition FROM cdr
+        if($params['type'] == 'entrantes'){//Entrantes
+            $sql = "SELECT uniqueid, calldate, lastapp, disposition, src, dst FROM cdr
             WHERE
             lastapp = 'Queue' 
             AND disposition = 'ANSWERED' 
@@ -79,8 +83,8 @@ function getCdr($params)
             AND YEAR(calldate) = ?
             AND MONTH(calldate) = ?
             AND DAY(calldate) = ? ";
-        }else{
-            $sql = "SELECT uniqueid, calldate, lastapp, disposition FROM cdr
+        }else{//Salientes
+            $sql = "SELECT uniqueid, calldate, lastapp, disposition, src, dst FROM cdr
             WHERE
             lastapp = 'Dial' 
             AND disposition = 'ANSWERED' 
@@ -124,8 +128,14 @@ function cicloCdr($params)
         $arrayConfig = explode('.', $v['uniqueid']);
         $unixtime = $arrayConfig[0];
         $anexo = $arrayConfig[1];
-        $gsmTemp = $unixtime . '-' . $anexo . '.gsm';
         $newDatetime = new DateTime($v['calldate']);
+
+        if($params['type'] == 'entrantes'){//Carpeta Entrantes
+            $gsmTemp = $unixtime . '-' . $anexo . '.gsm';
+        }else{//Carpeta Salientes
+            $gsmTemp = $newDatetime->format('Ymd') . '-' . $newDatetime->format('His') . '-' . $v['src'] . '-' . $v['dst'] . '.gsm';
+        }
+
         $request = ['dirYear' => $newDatetime->format('Y'),
             'dirMonth' => $newDatetime->format('m'),
             'dirDay' => $newDatetime->format('d'),
@@ -133,13 +143,15 @@ function cicloCdr($params)
             'anexo' => $anexo,
             'date' => $newDatetime->format('Ymd'),
             'hour' => $newDatetime->format('His'),
+            'src' => $v['src'],
+            'dst' => $v['dst'],
             'subDirectory' => $params['type']];
         enterDirectory($request, $gsmTemp, $finalRows, $k);
     }
 }
 
 //Acceder al directorio del archivo (.gsm)
-function enterDirectory($request = [], $temp = null, $finalRows, $finalRow)
+function enterDirectory($request = [], $gsmTemp = null, $finalRows, $finalRow)
 {
     try{
         $subDirectory = $request['subDirectory'];
@@ -151,8 +163,12 @@ function enterDirectory($request = [], $temp = null, $finalRows, $finalRow)
         foreach($filesInDirectory as $k => $v){
             if(!in_array($v, ['.', '..', 'por_verificar'])){
                 //Nota: aqui agregar validacion, para ser renombrado
-                if($v == $temp){//Validamos que el archivo exista, (example.gsm == example.gsm)
-                    $newRename = $fullPath . '/' . $request['unixtime'] . '-' . $request['anexo'] . '-' . $request['date'] . '-' . $request['hour'] . '.gsm';
+                if($v == $gsmTemp){//Validamos que el archivo exista, (example.gsm == example.gsm)
+                    if($subDirectory == 'entrantes'){//Carpeta Entrantes
+                        $newRename = $fullPath . '/' . $request['unixtime'] . '-' . $request['anexo'] . '-' . $request['date'] . '-' . $request['hour'] . '.gsm';
+                    }else{//Carpeta Salientes
+                        $newRename = $fullPath . '/' . $request['src'] . '-' . $request['dst'] . '-' . $request['date'] . '-' . $request['hour'] . '.gsm';
+                    }
                     renameFile($fullPath . '/' . $v, $newRename);
                     $msg_log = 'modified ' . $v . ' to ' . $newRename . " \n";
                     createLog($fullPath . '/log.txt', $msg_log);
@@ -164,20 +180,37 @@ function enterDirectory($request = [], $temp = null, $finalRows, $finalRow)
         if($finalRows - 1 == $finalRow){
             //Mover los archivos perdidos
             foreach($filesInDirectory as $kk => $vv){
-                if(!in_array($vv, ['.', '..', 'por_verificar','log.txt'])){
-                    $arrayFilesTemp = explode('-', $vv);
-                    if(count($arrayFilesTemp) <= 2){
-                        if(file_exists($fullPath . '/' . $vv)){
-                            $newRename = $fullPath . '/por_verificar/' . $vv;
-                            if(file_exists($fullPath . '/por_verificar')){
-                                renameFile($fullPath . '/' . $vv, $newRename);
-                            }else{
-                                mkdir($fullPath . '/por_verificar');
-                                renameFile($fullPath . '/' . $vv, $newRename);
+                if(!in_array($vv, ['.', '..', 'por_verificar', 'log.txt'])){
+                    $arrayFileTemp = explode('-', $vv);
+                    if($subDirectory == 'entrantes'){//Carpeta Entrantes
+                        if(count($arrayFileTemp) <= 2){
+                            if(file_exists($fullPath . '/' . $vv)){
+                                $newRename = $fullPath . '/por_verificar/' . $vv;
+                                if(file_exists($fullPath . '/por_verificar')){
+                                    renameFile($fullPath . '/' . $vv, $newRename);
+                                }else{
+                                    mkdir($fullPath . '/por_verificar');
+                                    renameFile($fullPath . '/' . $vv, $newRename);
+                                }
+                                $msg_log = 'moved ' . $vv . ' to ' . $newRename . " \n";
+                                createLog($fullPath . '/log.txt', $msg_log);
+                                echo $msg_log;
                             }
-                            $msg_log = 'moved ' . $vv . ' to ' . $newRename . " \n";
-                            createLog($fullPath . '/log.txt', $msg_log);
-                            echo $msg_log;
+                        }
+                    }else{//Carpeta Salientes
+                        if($vv == $gsmTemp){
+                            if(file_exists($fullPath . '/' . $vv)){
+                                $newRename = $fullPath . '/por_verificar/' . $vv;
+                                if(file_exists($fullPath . '/por_verificar')){
+                                    renameFile($fullPath . '/' . $vv, $newRename);
+                                }else{
+                                    mkdir($fullPath . '/por_verificar');
+                                    renameFile($fullPath . '/' . $vv, $newRename);
+                                }
+                                $msg_log = 'moved ' . $vv . ' to ' . $newRename . " \n";
+                                createLog($fullPath . '/log.txt', $msg_log);
+                                echo $msg_log;
+                            }
                         }
                     }
                 }
