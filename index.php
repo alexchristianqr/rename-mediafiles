@@ -61,8 +61,7 @@ function getConnection()
     ];
     try{
         //Copiar conexion del .env
-        //return new PDO('','','',$options);
-        return new PDO('mysql:host=192.167.99.207;port=3306;dbname=asteriskcdrdb', 'aquispe', 'aquispe', $options);
+        return new PDO('','','',$options);
     }catch(PDOException $e){
         return $e->getMessage();
     }
