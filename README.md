@@ -1,5 +1,5 @@
 # Archivo en Carpetas
-Renombre los archivos multimedia, guarda en un log.txt el seguimiento y crea una carpeta moviendo los archivos perdidos o no ubicados en la base de datos SQL
+Renombra los archivos multimedia, guarda en un log.txt el seguimiento y crea una carpeta moviendo los archivos perdidos o no ubicados en la base de datos SQL
 
 ##Imagenes
 <table style="width:100%">
